@@ -1,0 +1,46 @@
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function getRole(role) {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles[role];
+    }
+    
+    function getKey(rsc, key) {
+    	return rsc.data[key];
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOneOfRoles(rsc, array) {
+      return isSignedIn() && (getRole(rsc) in array);
+    }
+    
+    function isOwner() {
+    	return isSignedIn() && request.auth.uid == request.resource.data.uid;
+    }
+    
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    match /users/{user} {
+      allow write: if getRole('admin') == true;
+      allow read: if getRole('admin') == true || isOwner();
+      allow create, delete: if isOneOfRoles(resource, ['admin']);
+    }
+
+    match /posts/{post} {
+      allow write: if getRole('admin') == true || isOwner();
+      allow read: if isOwner() || getKey(resource, 'status') == 'published';
+      allow create, delete: if isOneOfRoles(resource, ['admin']) || isOwner();
+    } 
+    
+    match /products/{product} {
+      allow write: if getRole('admin') == true || isOwner();
+      allow read: if isOwner() || getKey(resource, 'public') == true;
+      allow create, delete: if isOneOfRoles(resource, ['admin']) || isOwner();
+    } 
+  }
+}
